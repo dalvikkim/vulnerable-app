@@ -23,5 +23,5 @@ jobs:
               "pull_request_author": "${{ github.event.pull_request.user.login }}"
             }' \
             
-            "https://n8n.dalvikkim.link/webhook-test/3cfa5ca7-b7d9-41b5-adf2-9a201f4b9016/webhook"  
+            "https://n8n.dalvikkim.link/webhook-test/3cfa5ca7-b7d9-41b5-adf2-9a201f4b9016/webhook"
             
