@@ -1,35 +1,60 @@
-name: semgrep-sast
+name: semgrep-to-n8n
 
 on:
-  pull_request:
   push:
-    branches: [ main, develop ]
+    branches: ["**"]
+
+permissions:
+  contents: read
 
 jobs:
   semgrep:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Semgrep
+      - name: Install semgrep
         run: |
-          python -m pip install --upgrade pip
-          pip install semgrep
+          python3 -m pip install --upgrade pip
+          python3 -m pip install semgrep
 
-      - name: Run Semgrep (JSON output)
+      - name: Run semgrep (json)
         run: |
-          semgrep scan . \
-            --config p/owasp-top-ten \
-            --json > semgrep-result.json
+          semgrep scan --config auto --json --output semgrep.json || true
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: semgrep-result
-          path: semgrep-result.json
+      # (권장) 결과를 요약해서 payload 크기 줄이기
+      - name: Prepare payload
+        run: |
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open("semgrep.json","r",encoding="utf-8"))
+          results = data.get("results", [])
+          top = results[:50]
+          payload = {
+            "repo": os.getenv("GITHUB_REPOSITORY"),
+            "sha": os.getenv("GITHUB_SHA"),
+            "ref": os.getenv("GITHUB_REF"),
+            "count": len(results),
+            "top": [
+              {
+                "check_id": r.get("check_id"),
+                "path": r.get("path"),
+                "start": r.get("start", {}),
+                "end": r.get("end", {}),
+                "extra": {
+                  "severity": r.get("extra", {}).get("severity"),
+                  "message": r.get("extra", {}).get("message"),
+                },
+              } for r in top
+            ],
+          }
+          open("payload.json","w",encoding="utf-8").write(json.dumps(payload, ensure_ascii=False))
+          PY
+
+      - name: Send to n8n webhook
+        env:
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+        run: |
+          curl -sS -X POST "$N8N_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            --data-binary @payload.json
