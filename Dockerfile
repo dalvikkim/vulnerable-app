@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+COPY main.py . 
 
 # 취약점 테스트를 위한 더미 파일 생성 (Path Traversal 테스트용)
 RUN echo "This is a secret system file." > /secret.txt
